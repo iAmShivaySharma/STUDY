@@ -206,11 +206,13 @@ jobs:
           let sdSection = '';
           if (sdTask) {
             const fileLink = `${repoUrl}/blob/main/${sdTask.file}`;
-            sdSection = `### 🏗️ System Design — ${sdTask.type}: ${sdTask.topic} (Day ${sdDay}/${totals.system_design})
-- [ ] **Review notes:** [${sdTask.topic}](${fileLink})
-- [ ] **Draw architecture diagram** from memory (no peeking!)
-- [ ] **Write key components, data flow & trade-offs** in your own words
-- [ ] **Practice explaining** it as if in an interview (2 min verbal walkthrough)`;
+            sdSection = [
+              `### \u{1f3d7}\ufe0f System Design \u2014 ${sdTask.type}: ${sdTask.topic} (Day ${sdDay}/${totals.system_design})`,
+              `- [ ] **Review notes:** [${sdTask.topic}](${fileLink})`,
+              '- [ ] **Draw architecture diagram** from memory (no peeking!)',
+              '- [ ] **Write key components, data flow & trade-offs** in your own words',
+              '- [ ] **Practice explaining** it as if in an interview (2 min verbal walkthrough)'
+            ].join('\n');
             if (progress.system_design.consecutive_skips > 0) {
               sdSection += `\n> ⚠️ Skipped ${progress.system_design.consecutive_skips} day(s) — SAME topic until you finish!`;
             }
@@ -238,10 +240,12 @@ jobs:
           let mcSection = '';
           if (mcTask) {
             const taskLines = mcTask.tasks.map(t => `- [ ] ${t}`).join('\n');
-            mcSection = `### 💻 Machine Coding — ${mcTask.type}: ${mcTask.topic} (Day ${mcDay}/${totals.machine_coding})
-${taskLines}
-- [ ] **Time yourself** — complete within 60-90 minutes
-- [ ] **Review:** Is the code clean, modular, and handles edge cases?`;
+            mcSection = [
+              `### \u{1f4bb} Machine Coding \u2014 ${mcTask.type}: ${mcTask.topic} (Day ${mcDay}/${totals.machine_coding})`,
+              taskLines,
+              '- [ ] **Time yourself** \u2014 complete within 60-90 minutes',
+              '- [ ] **Review:** Is the code clean, modular, and handles edge cases?'
+            ].join('\n');
             if (mcTask.file) {
               mcSection += `\n> 📖 Reference: [Notes](${repoUrl}/blob/main/${mcTask.file})`;
             }
@@ -259,46 +263,29 @@ ${taskLines}
             return `${'█'.repeat(filled)}${'░'.repeat(20 - filled)} ${pct}%`;
           }
 
-          const progressSection = `### 📈 Overall Progress
-| Track | Progress | Completed |
-|-------|----------|-----------|
-| DSA | ${progressBar(progress.dsa.completed_days.length, totals.dsa)} | ${progress.dsa.completed_days.length}/${totals.dsa} days |
-| System Design | ${progressBar(progress.system_design.completed_days.length, totals.system_design)} | ${progress.system_design.completed_days.length}/${totals.system_design} days |
-| SQL | ${progressBar(progress.sql.completed_days.length, totals.sql)} | ${progress.sql.completed_days.length}/${totals.sql} days |
-| Machine Coding | ${progressBar(progress.machine_coding.completed_days.length, totals.machine_coding)} | ${progress.machine_coding.completed_days.length}/${totals.machine_coding} days |`;
+          const progressSection = [
+            '### \u{1f4c8} Overall Progress',
+            '| Track | Progress | Completed |',
+            '|-------|----------|-----------|',
+            `| DSA | ${progressBar(progress.dsa.completed_days.length, totals.dsa)} | ${progress.dsa.completed_days.length}/${totals.dsa} days |`,
+            `| System Design | ${progressBar(progress.system_design.completed_days.length, totals.system_design)} | ${progress.system_design.completed_days.length}/${totals.system_design} days |`,
+            `| SQL | ${progressBar(progress.sql.completed_days.length, totals.sql)} | ${progress.sql.completed_days.length}/${totals.sql} days |`,
+            `| Machine Coding | ${progressBar(progress.machine_coding.completed_days.length, totals.machine_coding)} | ${progress.machine_coding.completed_days.length}/${totals.machine_coding} days |`
+          ].join('\n');
 
-          const body = `${streakSection}
+          const rules = [
+            '## \u{1f4cb} Rules (You agreed to these!)',
+            '1. **Close this issue** when you complete ALL tasks for the day',
+            '2. If you skip, the **SAME tasks repeat tomorrow** \u2014 no moving forward',
+            '3. **Max 3 consecutive skips** \u2014 after that you get escalating warnings',
+            '4. **All 4 tracks must be done** to count as a completed day and grow your streak',
+            '5. **No cherry-picking** \u2014 you do DSA + System Design + SQL + Machine Coding, every single day',
+            '',
+            '> *"We are what we repeatedly do. Excellence, then, is not an act, but a habit."* \u2014 Aristotle'
+          ].join('\n');
 
----
-
-${dsaSection}
-
----
-
-${sdSection}
-
----
-
-${sqlSection}
-
----
-
-${mcSection}
-
----
-
-${progressSection}
-
----
-
-## 📋 Rules (You agreed to these!)
-1. **Close this issue** when you complete ALL tasks for the day
-2. If you skip, the **SAME tasks repeat tomorrow** — no moving forward
-3. **Max 3 consecutive skips** — after that you get escalating warnings
-4. **All 4 tracks must be done** to count as a completed day and grow your streak
-5. **No cherry-picking** — you do DSA + System Design + SQL + Machine Coding, every single day
-
-> *"We are what we repeatedly do. Excellence, then, is not an act, but a habit."* — Aristotle`;
+          const separator = '\n\n---\n\n';
+          const body = [streakSection, dsaSection, sdSection, sqlSection, mcSection, progressSection, rules].join(separator);
 
           // ── Ensure labels exist ────────────────────────────────────
           try { gh(`label create "study-reminder" --repo ${REPO} --color "0075ca" --description "Daily study reminder" --force`); } catch (_) {}

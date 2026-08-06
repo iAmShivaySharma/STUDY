@@ -62,35 +62,49 @@ jobs:
           let msg = '';
 
           if (maxSkips >= 3) {
-            msg = `🚨 **9 PM — FINAL CALL!**
-
-You've already skipped **${maxSkips} days in a row**. You promised yourself: no more than 3 consecutive skips.
-
-The issue is still open. You have **3 hours** before the day ends. Even doing 1-2 tasks is better than a full skip.
-
-**Stop scrolling. Open the tasks. Start NOW.**`;
+            msg = [
+              '\u{1f6a8} **9 PM \u2014 FINAL CALL!**',
+              '',
+              `You've already skipped **${maxSkips} days in a row**. You promised yourself: no more than 3 consecutive skips.`,
+              '',
+              'The issue is still open. You have **3 hours** before the day ends. Even doing 1-2 tasks is better than a full skip.',
+              '',
+              '**Stop scrolling. Open the tasks. Start NOW.**'
+            ].join('\n');
           } else if (maxSkips >= 1) {
-            msg = `⏰ **9 PM Reminder — Don't skip again!**
-
-You already skipped yesterday. Two skips in a row and you're on thin ice.
-
-${streak > 0 ? `Your **${streak}-day streak** is at risk. Don't throw it away.` : `You need to rebuild your streak. Start tonight.`}
-
-Close this issue before midnight to keep your progress moving.`;
+            const streakLine = streak > 0
+              ? `Your **${streak}-day streak** is at risk. Don't throw it away.`
+              : 'You need to rebuild your streak. Start tonight.';
+            msg = [
+              '\u23f0 **9 PM Reminder \u2014 Don\'t skip again!**',
+              '',
+              'You already skipped yesterday. Two skips in a row and you\'re on thin ice.',
+              '',
+              streakLine,
+              '',
+              'Close this issue before midnight to keep your progress moving.'
+            ].join('\n');
           } else if (streak >= 5) {
-            msg = `🔥 **9 PM Check-in — Protect your ${streak}-day streak!**
-
-You've been consistent for ${streak} days straight. That's real discipline.
-
-Don't let tonight be the night you break it. The tasks are waiting — finish them and close this issue.`;
+            msg = [
+              `\u{1f525} **9 PM Check-in \u2014 Protect your ${streak}-day streak!**`,
+              '',
+              `You've been consistent for ${streak} days straight. That's real discipline.`,
+              '',
+              'Don\'t let tonight be the night you break it. The tasks are waiting \u2014 finish them and close this issue.'
+            ].join('\n');
           } else {
-            msg = `🌙 **9 PM Reminder — Tasks still pending!**
-
-Today's study tasks are still open. You have the rest of the evening to get them done.
-
-${streak > 0 ? `Current streak: **${streak} days**. Keep it going!` : `Start building your streak today. Every day 1 has to start somewhere.`}
-
-**Tip:** Even if you're tired, do the DSA problems first — they take the least time but build the most long-term value.`;
+            const streakLine = streak > 0
+              ? `Current streak: **${streak} days**. Keep it going!`
+              : 'Start building your streak today. Every day 1 has to start somewhere.';
+            msg = [
+              '\u{1f319} **9 PM Reminder \u2014 Tasks still pending!**',
+              '',
+              'Today\'s study tasks are still open. You have the rest of the evening to get them done.',
+              '',
+              streakLine,
+              '',
+              '**Tip:** Even if you\'re tired, do the DSA problems first \u2014 they take the least time but build the most long-term value.'
+            ].join('\n');
           }
 
           try {
