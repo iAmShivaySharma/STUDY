@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -nP '^\\\\s{0,9}\\\\S' .github/workflows/study-daily.yml)"
+    ]
+  }
+}
