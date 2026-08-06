@@ -1,4 +1,4 @@
-name: Night Study Reminder
+name: "Night Study Reminder"
 
 on:
   schedule:

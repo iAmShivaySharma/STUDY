@@ -1,4 +1,4 @@
-name: Daily Study Reminder
+name: "Daily Study Reminder"
 
 on:
   schedule:
