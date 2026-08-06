@@ -7,13 +7,15 @@ on:
   workflow_dispatch:
     inputs:
       reset_track:
-        description: 'Reset a track to day 1 (dsa, system_design, sql, machine_coding, or leave empty)'
+        description: 'Reset a specific track to day 1'
         required: false
-        default: ''
+        type: string
+        default: 'none'
       reset_all:
-        description: 'Reset ALL tracks to day 1 (true/false)'
+        description: 'Reset ALL tracks to day 1'
         required: false
-        default: 'false'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -36,8 +38,8 @@ jobs:
       - name: Create daily study issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RESET_TRACK: ${{ github.event.inputs.reset_track || '' }}
-          RESET_ALL: ${{ github.event.inputs.reset_all || 'false' }}
+          RESET_TRACK: ${{ inputs.reset_track }}
+          RESET_ALL: ${{ inputs.reset_all }}
           REPO: ${{ github.repository }}
         run: |
           node << 'SCRIPT_EOF'
@@ -64,7 +66,7 @@ jobs:
             }
             progress.streak = { current: 0, longest: 0, total_days_studied: 0, total_days_skipped: 0, last_completed_date: null };
             console.log('All tracks reset to day 1');
-          } else if (RESET_TRACK && ALL_TRACKS.includes(RESET_TRACK)) {
+          } else if (RESET_TRACK && RESET_TRACK !== 'none' && ALL_TRACKS.includes(RESET_TRACK)) {
             progress[RESET_TRACK] = { current_day: 1, consecutive_skips: 0, completed_days: [], last_issue_number: null };
             console.log(`Track "${RESET_TRACK}" reset to day 1`);
           }
