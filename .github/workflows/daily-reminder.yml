@@ -1,0 +1,352 @@
+name: Daily Study Reminder
+
+on:
+  schedule:
+    # 6:00 AM IST = 12:30 AM UTC
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+    inputs:
+      reset_track:
+        description: 'Reset a track to day 1 (dsa, system_design, sql, machine_coding, or leave empty)'
+        required: false
+        default: ''
+      reset_all:
+        description: 'Reset ALL tracks to day 1 (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  create-daily-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Create daily study issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RESET_TRACK: ${{ github.event.inputs.reset_track || '' }}
+          RESET_ALL: ${{ github.event.inputs.reset_all || 'false' }}
+          REPO: ${{ github.repository }}
+        run: |
+          node << 'SCRIPT_EOF'
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+
+          function gh(cmd) {
+            return execSync(`gh ${cmd}`, { encoding: 'utf-8' }).trim();
+          }
+
+          // ── Load data ──────────────────────────────────────────────
+          const studyPlan = JSON.parse(fs.readFileSync('study-plan/study-plan.json', 'utf-8'));
+          let progress = JSON.parse(fs.readFileSync('study-plan/progress.json', 'utf-8'));
+
+          const REPO = process.env.REPO;
+          const RESET_TRACK = process.env.RESET_TRACK;
+          const RESET_ALL = process.env.RESET_ALL;
+          const ALL_TRACKS = ['dsa', 'system_design', 'sql', 'machine_coding'];
+
+          // ── Handle resets ──────────────────────────────────────────
+          if (RESET_ALL === 'true') {
+            for (const track of ALL_TRACKS) {
+              progress[track] = { current_day: 1, consecutive_skips: 0, completed_days: [], last_issue_number: null };
+            }
+            progress.streak = { current: 0, longest: 0, total_days_studied: 0, total_days_skipped: 0, last_completed_date: null };
+            console.log('All tracks reset to day 1');
+          } else if (RESET_TRACK && ALL_TRACKS.includes(RESET_TRACK)) {
+            progress[RESET_TRACK] = { current_day: 1, consecutive_skips: 0, completed_days: [], last_issue_number: null };
+            console.log(`Track "${RESET_TRACK}" reset to day 1`);
+          }
+
+          // ── Initialize streak if missing ──────────────────────────
+          if (!progress.streak) {
+            progress.streak = { current: 0, longest: 0, total_days_studied: 0, total_days_skipped: 0, last_completed_date: null };
+          }
+
+          // ── Track totals ───────────────────────────────────────────
+          const totals = {};
+          for (const track of ALL_TRACKS) {
+            totals[track] = studyPlan[track].length;
+          }
+
+          // ── Check previous issues & update progress ────────────────
+          let anyCompleted = false;
+          let anySkipped = false;
+
+          for (const track of ALL_TRACKS) {
+            const p = progress[track];
+            if (p.last_issue_number) {
+              try {
+                const issueJson = gh(`issue view ${p.last_issue_number} --repo ${REPO} --json state`);
+                const issue = JSON.parse(issueJson);
+
+                if (issue.state === 'CLOSED') {
+                  // Completed! Move forward
+                  if (!p.completed_days.includes(p.current_day)) {
+                    p.completed_days.push(p.current_day);
+                  }
+                  p.consecutive_skips = 0;
+                  p.current_day += 1;
+                  anyCompleted = true;
+
+                  // Check if track completed — cycle back
+                  if (p.current_day > totals[track]) {
+                    console.log(`Track "${track}" completed! Starting revision cycle.`);
+                    p.current_day = 1;
+                  }
+                } else {
+                  // Still open — skipped
+                  p.consecutive_skips += 1;
+                  anySkipped = true;
+                  console.log(`Track "${track}": skip #${p.consecutive_skips}`);
+
+                  if (p.consecutive_skips >= 3) {
+                    // Add escalating warning comment
+                    const warningMsg = p.consecutive_skips === 3
+                      ? "⚠️ **3-DAY SKIP WARNING!** You've skipped for ${p.consecutive_skips} days straight. Your streak is broken. Complete this TODAY or you'll fall further behind!"
+                      : `🚨 **${p.consecutive_skips}-DAY SKIP!** This is getting serious. You've been skipping for ${p.consecutive_skips} days. The whole point is CONSISTENCY. Do it NOW — even 30 minutes counts!`;
+                    try {
+                      gh(`issue comment ${p.last_issue_number} --repo ${REPO} --body "${warningMsg}"`);
+                    } catch (e) {
+                      console.log('Warning: could not add skip comment:', e.message);
+                    }
+                  }
+                }
+              } catch (e) {
+                console.log(`Warning: could not check issue #${p.last_issue_number}:`, e.message);
+                p.consecutive_skips += 1;
+                anySkipped = true;
+              }
+            }
+          }
+
+          // ── Update streak ──────────────────────────────────────────
+          const today = new Date().toISOString().split('T')[0];
+
+          if (anyCompleted && !anySkipped) {
+            // All tracks were completed
+            progress.streak.current += 1;
+            progress.streak.total_days_studied += 1;
+            if (progress.streak.current > progress.streak.longest) {
+              progress.streak.longest = progress.streak.current;
+            }
+            progress.streak.last_completed_date = today;
+          } else if (anySkipped) {
+            // At least one track was skipped
+            if (!anyCompleted) {
+              // Full skip day
+              progress.streak.current = 0;
+              progress.streak.total_days_skipped += 1;
+            } else {
+              // Partial — don't break streak but don't increment
+              progress.streak.total_days_studied += 1;
+            }
+          }
+
+          const completionRate = progress.streak.total_days_studied + progress.streak.total_days_skipped > 0
+            ? Math.round((progress.streak.total_days_studied / (progress.streak.total_days_studied + progress.streak.total_days_skipped)) * 100)
+            : 0;
+
+          // ── Build issue body ───────────────────────────────────────
+          const repoUrl = `https://github.com/${REPO}`;
+
+          // Streak header
+          const streakEmoji = progress.streak.current >= 7 ? '🔥🔥🔥' : progress.streak.current >= 3 ? '🔥' : '💪';
+          let streakSection = `## ${streakEmoji} Streak: ${progress.streak.current} days | Best: ${progress.streak.longest} days | Rate: ${completionRate}%\n`;
+
+          if (progress.streak.current === 0 && progress.streak.total_days_skipped > 0) {
+            streakSection += `> 😤 **Streak broken!** Get back on track TODAY. No excuses.\n`;
+          } else if (progress.streak.current >= 7) {
+            streakSection += `> 🏆 **${progress.streak.current}-day streak!** You're building a real habit. Don't stop now!\n`;
+          }
+
+          // Max consecutive skips across all tracks
+          const maxSkips = Math.max(...ALL_TRACKS.map(t => progress[t].consecutive_skips));
+          if (maxSkips >= 3) {
+            streakSection += `\n> 🚨 **ACCOUNTABILITY ALERT:** You have ${maxSkips} consecutive skips. You committed to not skipping more than 3 days. COMPLETE TODAY'S TASKS!\n`;
+          }
+
+          // DSA section
+          const dsaDay = progress.dsa.current_day;
+          const dsaTask = studyPlan.dsa.find(d => d.day === dsaDay);
+          let dsaSection = '';
+          if (dsaTask) {
+            const problemLines = dsaTask.problems.map((prob, i) => {
+              const fileLink = dsaTask.files[i] ? `${repoUrl}/blob/main/${dsaTask.files[i]}` : '#';
+              const lcLink = dsaTask.leetcode && dsaTask.leetcode[i] ? dsaTask.leetcode[i] : null;
+              let line = `- [ ] **${prob}** — [View Solution](${fileLink})`;
+              if (lcLink) line += ` | [Submit on LeetCode](${lcLink})`;
+              line += `\n  - Understand the approach, write it from scratch, then test with edge cases`;
+              return line;
+            }).join('\n');
+            dsaSection = `### 🧮 DSA — Pattern: ${dsaTask.pattern} (Day ${dsaDay}/${totals.dsa})\n${problemLines}`;
+            if (progress.dsa.consecutive_skips > 0) {
+              dsaSection += `\n> ⚠️ Skipped ${progress.dsa.consecutive_skips} day(s) — SAME problems until you finish them!`;
+            }
+          } else {
+            dsaSection = `### 🧮 DSA — 🎉 Track completed! Starting revision cycle.`;
+          }
+
+          // System Design section
+          const sdDay = progress.system_design.current_day;
+          const sdTask = studyPlan.system_design.find(d => d.day === sdDay);
+          let sdSection = '';
+          if (sdTask) {
+            const fileLink = `${repoUrl}/blob/main/${sdTask.file}`;
+            sdSection = `### 🏗️ System Design — ${sdTask.type}: ${sdTask.topic} (Day ${sdDay}/${totals.system_design})
+- [ ] **Review notes:** [${sdTask.topic}](${fileLink})
+- [ ] **Draw architecture diagram** from memory (no peeking!)
+- [ ] **Write key components, data flow & trade-offs** in your own words
+- [ ] **Practice explaining** it as if in an interview (2 min verbal walkthrough)`;
+            if (progress.system_design.consecutive_skips > 0) {
+              sdSection += `\n> ⚠️ Skipped ${progress.system_design.consecutive_skips} day(s) — SAME topic until you finish!`;
+            }
+          } else {
+            sdSection = `### 🏗️ System Design — 🎉 Track completed! Starting revision cycle.`;
+          }
+
+          // SQL section
+          const sqlDay = progress.sql.current_day;
+          const sqlTask = studyPlan.sql.find(d => d.day === sqlDay);
+          let sqlSection = '';
+          if (sqlTask) {
+            const taskLines = sqlTask.tasks.map(t => `- [ ] ${t}`).join('\n');
+            sqlSection = `### 🗃️ SQL — ${sqlTask.topic} (Day ${sqlDay}/${totals.sql})\n${taskLines}`;
+            if (progress.sql.consecutive_skips > 0) {
+              sqlSection += `\n> ⚠️ Skipped ${progress.sql.consecutive_skips} day(s) — SAME queries until you finish!`;
+            }
+          } else {
+            sqlSection = `### 🗃️ SQL — 🎉 Track completed! Starting revision cycle.`;
+          }
+
+          // Machine Coding section
+          const mcDay = progress.machine_coding.current_day;
+          const mcTask = studyPlan.machine_coding.find(d => d.day === mcDay);
+          let mcSection = '';
+          if (mcTask) {
+            const taskLines = mcTask.tasks.map(t => `- [ ] ${t}`).join('\n');
+            mcSection = `### 💻 Machine Coding — ${mcTask.type}: ${mcTask.topic} (Day ${mcDay}/${totals.machine_coding})
+${taskLines}
+- [ ] **Time yourself** — complete within 60-90 minutes
+- [ ] **Review:** Is the code clean, modular, and handles edge cases?`;
+            if (mcTask.file) {
+              mcSection += `\n> 📖 Reference: [Notes](${repoUrl}/blob/main/${mcTask.file})`;
+            }
+            if (progress.machine_coding.consecutive_skips > 0) {
+              mcSection += `\n> ⚠️ Skipped ${progress.machine_coding.consecutive_skips} day(s) — SAME task until you finish!`;
+            }
+          } else {
+            mcSection = `### 💻 Machine Coding — 🎉 Track completed! Starting revision cycle.`;
+          }
+
+          // Progress bars
+          function progressBar(completed, total) {
+            const pct = Math.round((completed / total) * 100);
+            const filled = Math.round(pct / 5);
+            return `${'█'.repeat(filled)}${'░'.repeat(20 - filled)} ${pct}%`;
+          }
+
+          const progressSection = `### 📈 Overall Progress
+| Track | Progress | Completed |
+|-------|----------|-----------|
+| DSA | ${progressBar(progress.dsa.completed_days.length, totals.dsa)} | ${progress.dsa.completed_days.length}/${totals.dsa} days |
+| System Design | ${progressBar(progress.system_design.completed_days.length, totals.system_design)} | ${progress.system_design.completed_days.length}/${totals.system_design} days |
+| SQL | ${progressBar(progress.sql.completed_days.length, totals.sql)} | ${progress.sql.completed_days.length}/${totals.sql} days |
+| Machine Coding | ${progressBar(progress.machine_coding.completed_days.length, totals.machine_coding)} | ${progress.machine_coding.completed_days.length}/${totals.machine_coding} days |`;
+
+          const body = `${streakSection}
+
+---
+
+${dsaSection}
+
+---
+
+${sdSection}
+
+---
+
+${sqlSection}
+
+---
+
+${mcSection}
+
+---
+
+${progressSection}
+
+---
+
+## 📋 Rules (You agreed to these!)
+1. **Close this issue** when you complete ALL tasks for the day
+2. If you skip, the **SAME tasks repeat tomorrow** — no moving forward
+3. **Max 3 consecutive skips** — after that you get escalating warnings
+4. **All 4 tracks must be done** to count as a completed day and grow your streak
+5. **No cherry-picking** — you do DSA + System Design + SQL + Machine Coding, every single day
+
+> *"We are what we repeatedly do. Excellence, then, is not an act, but a habit."* — Aristotle`;
+
+          // ── Ensure labels exist ────────────────────────────────────
+          try { gh(`label create "study-reminder" --repo ${REPO} --color "0075ca" --description "Daily study reminder" --force`); } catch (_) {}
+          try { gh(`label create "daily-task" --repo ${REPO} --color "e4e669" --description "Daily task" --force`); } catch (_) {}
+
+          // Add streak labels
+          if (progress.streak.current >= 7) {
+            try { gh(`label create "streak-7+" --repo ${REPO} --color "ff6b00" --description "7+ day streak" --force`); } catch (_) {}
+          }
+
+          // ── Create the issue ───────────────────────────────────────
+          const title = `📚 Daily Study Plan — ${today}`;
+          fs.writeFileSync('/tmp/issue_body.md', body);
+
+          let labels = 'study-reminder,daily-task';
+          if (maxSkips >= 3) labels += ',urgent';
+          if (progress.streak.current >= 7) labels += ',streak-7+';
+
+          let issueUrl;
+          try {
+            issueUrl = gh(`issue create --repo ${REPO} --title "${title}" --body-file /tmp/issue_body.md --label "${labels}"`);
+          } catch (e) {
+            // Retry without optional labels
+            try { gh(`label create "urgent" --repo ${REPO} --color "d73a4a" --description "Urgent - too many skips" --force`); } catch (_) {}
+            issueUrl = gh(`issue create --repo ${REPO} --title "${title}" --body-file /tmp/issue_body.md --label "${labels}"`);
+          }
+
+          console.log(`Issue created: ${issueUrl}`);
+
+          // Extract issue number from URL
+          const issueNumber = parseInt(issueUrl.split('/').pop());
+
+          // ── Update progress ────────────────────────────────────────
+          for (const track of ALL_TRACKS) {
+            progress[track].last_issue_number = issueNumber;
+          }
+
+          fs.writeFileSync('study-plan/progress.json', JSON.stringify(progress, null, 2) + '\n');
+          console.log('Progress updated.');
+
+          SCRIPT_EOF
+
+      - name: Commit and push progress
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add study-plan/progress.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update study progress [skip ci]"
+            git push
+          fi

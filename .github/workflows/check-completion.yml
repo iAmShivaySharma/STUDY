@@ -1,0 +1,124 @@
+name: Check Study Completion
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  update-progress:
+    if: contains(github.event.issue.labels.*.name, 'study-reminder')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update progress on issue close
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          node << 'SCRIPT_EOF'
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+
+          function gh(cmd) {
+            return execSync(`gh ${cmd}`, { encoding: 'utf-8' }).trim();
+          }
+
+          const studyPlan = JSON.parse(fs.readFileSync('study-plan/study-plan.json', 'utf-8'));
+          let progress = JSON.parse(fs.readFileSync('study-plan/progress.json', 'utf-8'));
+
+          const closedIssue = parseInt(process.env.ISSUE_NUMBER);
+          const REPO = process.env.REPO;
+          const ALL_TRACKS = ['dsa', 'system_design', 'sql', 'machine_coding'];
+
+          const totals = {};
+          for (const track of ALL_TRACKS) {
+            totals[track] = studyPlan[track].length;
+          }
+
+          // Initialize streak if missing
+          if (!progress.streak) {
+            progress.streak = { current: 0, longest: 0, total_days_studied: 0, total_days_skipped: 0, last_completed_date: null };
+          }
+
+          let changed = false;
+
+          for (const track of ALL_TRACKS) {
+            const p = progress[track];
+
+            if (p.last_issue_number === closedIssue) {
+              // Mark current day as completed
+              if (!p.completed_days.includes(p.current_day)) {
+                p.completed_days.push(p.current_day);
+              }
+              p.consecutive_skips = 0;
+              p.current_day += 1;
+
+              // Cycle back if track completed
+              if (p.current_day > totals[track]) {
+                console.log(`Track "${track}" completed! Cycling back to day 1 for revision.`);
+                p.current_day = 1;
+              }
+
+              changed = true;
+              console.log(`Track "${track}": day completed, moving to day ${p.current_day}`);
+            }
+          }
+
+          if (changed) {
+            // Update streak
+            const today = new Date().toISOString().split('T')[0];
+            if (progress.streak.last_completed_date !== today) {
+              progress.streak.current += 1;
+              progress.streak.total_days_studied += 1;
+              if (progress.streak.current > progress.streak.longest) {
+                progress.streak.longest = progress.streak.current;
+              }
+              progress.streak.last_completed_date = today;
+            }
+
+            fs.writeFileSync('study-plan/progress.json', JSON.stringify(progress, null, 2) + '\n');
+            console.log('Progress file updated.');
+
+            // Add a congratulatory comment
+            const streak = progress.streak.current;
+            let msg = `✅ **Day completed!** `;
+            if (streak >= 7) {
+              msg += `🔥🔥🔥 **${streak}-day streak!** You're on fire! Keep this momentum going!`;
+            } else if (streak >= 3) {
+              msg += `🔥 **${streak}-day streak!** Consistency is building. Don't break the chain!`;
+            } else if (streak === 1) {
+              msg += `Good start! Now do it again tomorrow. One day at a time.`;
+            } else {
+              msg += `**${streak}-day streak!** You're getting back on track!`;
+            }
+
+            try {
+              gh(`issue comment ${closedIssue} --repo ${REPO} --body "${msg}"`);
+            } catch (e) {
+              console.log('Could not add comment:', e.message);
+            }
+          } else {
+            console.log('Closed issue does not match any track\'s last_issue_number. No changes.');
+          }
+          SCRIPT_EOF
+
+      - name: Commit and push progress
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add study-plan/progress.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: mark study day completed [skip ci]"
+            git push
+          fi

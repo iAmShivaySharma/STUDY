@@ -1,0 +1,33 @@
+{
+  "dsa": {
+    "current_day": 1,
+    "consecutive_skips": 0,
+    "completed_days": [],
+    "last_issue_number": null
+  },
+  "system_design": {
+    "current_day": 1,
+    "consecutive_skips": 0,
+    "completed_days": [],
+    "last_issue_number": null
+  },
+  "sql": {
+    "current_day": 1,
+    "consecutive_skips": 0,
+    "completed_days": [],
+    "last_issue_number": null
+  },
+  "machine_coding": {
+    "current_day": 1,
+    "consecutive_skips": 0,
+    "completed_days": [],
+    "last_issue_number": null
+  },
+  "streak": {
+    "current": 0,
+    "longest": 0,
+    "total_days_studied": 0,
+    "total_days_skipped": 0,
+    "last_completed_date": null
+  }
+}

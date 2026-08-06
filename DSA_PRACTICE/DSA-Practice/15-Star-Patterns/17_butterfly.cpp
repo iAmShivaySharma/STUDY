@@ -1,0 +1,46 @@
+/*
+ * Problem  : Butterfly Pattern
+ * Difficulty: Easy
+ * Pattern  : Star Patterns (nested loops)
+ *
+ * Problem Statement:
+ *   Print a butterfly: two triangles of stars facing each other, separated
+ *   by a shrinking-then-growing gap.
+ *
+ * Example (n = 4):
+ *   *      *
+ *   **    **
+ *   ***  ***
+ *   ********
+ *   ********
+ *   ***  ***
+ *   **    **
+ *   *      *
+ *
+ * Approach / Intuition:
+ *   - Upper half (i = 1..n): i stars, 2*(n - i) spaces, i stars.
+ *   - Lower half (i = n..1): same formula, mirrored.
+ *
+ * Time Complexity : O(n^2)
+ * Space Complexity: O(1)
+ */
+
+#include <bits/stdc++.h>
+using namespace std;
+
+class Solution {
+public:
+    void printPattern(int n) {
+        // TODO: implement this pattern
+    }
+};
+
+/* ────────── Test ────────── */
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    Solution sol;
+    sol.printPattern(4);
+    return 0;
+}
