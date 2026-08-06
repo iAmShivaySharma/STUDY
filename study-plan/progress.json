@@ -3,25 +3,25 @@
     "current_day": 1,
     "consecutive_skips": 0,
     "completed_days": [],
-    "last_issue_number": null
+    "last_issue_number": 1
   },
   "system_design": {
     "current_day": 1,
     "consecutive_skips": 0,
     "completed_days": [],
-    "last_issue_number": null
+    "last_issue_number": 1
   },
   "sql": {
     "current_day": 1,
     "consecutive_skips": 0,
     "completed_days": [],
-    "last_issue_number": null
+    "last_issue_number": 1
   },
   "machine_coding": {
     "current_day": 1,
     "consecutive_skips": 0,
     "completed_days": [],
-    "last_issue_number": null
+    "last_issue_number": 1
   },
   "streak": {
     "current": 0,
