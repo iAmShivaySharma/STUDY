@@ -16,6 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check and remind
+        id: night-check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -107,14 +108,34 @@ jobs:
             ].join('\n');
           }
 
+          // Save message for email
+          fs.writeFileSync('/tmp/night_msg.md', msg);
+
           try {
-            gh(`issue comment ${issueNumber} --repo ${REPO} --body "${msg.replace(/"/g, '\\"')}"`);
+            gh(`issue comment ${issueNumber} --repo ${REPO} --body-file /tmp/night_msg.md`);
             console.log(`Night reminder added to issue #${issueNumber}`);
           } catch (e) {
-            // Use body-file approach for complex messages
-            fs.writeFileSync('/tmp/night_msg.md', msg);
-            gh(`issue comment ${issueNumber} --repo ${REPO} --body-file /tmp/night_msg.md`);
-            console.log(`Night reminder added to issue #${issueNumber} (via file)`);
+            console.log('Warning: could not add night comment:', e.message);
+          }
+
+          // Write output for email
+          const outputFile = process.env.GITHUB_OUTPUT;
+          if (outputFile) {
+            fs.appendFileSync(outputFile, `sent=true\n`);
           }
 
           SCRIPT_EOF
+
+      - name: Send night email reminder
+        if: steps.night-check.outputs.sent == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "⏰ 9 PM — Study tasks still pending!"
+          to: ${{ secrets.EMAIL_TO }}
+          from: Study Tracker <${{ secrets.SMTP_USERNAME }}>
+          html_body: file:///tmp/night_msg.md
+          convert_markdown: true

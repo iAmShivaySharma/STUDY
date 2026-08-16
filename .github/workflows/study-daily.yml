@@ -36,6 +36,7 @@ jobs:
           node-version: '20'
 
       - name: Create daily study issue
+        id: create-issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RESET_TRACK: ${{ inputs.reset_track }}
@@ -326,7 +327,29 @@ jobs:
           fs.writeFileSync('study-plan/progress.json', JSON.stringify(progress, null, 2) + '\n');
           console.log('Progress updated.');
 
+          // Write outputs for email step
+          const outputFile = process.env.GITHUB_OUTPUT;
+          if (outputFile) {
+            fs.appendFileSync(outputFile, `issue_url=${issueUrl}\n`);
+            fs.appendFileSync(outputFile, `issue_title=${title}\n`);
+            fs.appendFileSync(outputFile, `issue_number=${issueNumber}\n`);
+          }
+
           SCRIPT_EOF
+
+      - name: Send email notification
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: ${{ steps.create-issue.outputs.issue_title }}
+          to: ${{ secrets.EMAIL_TO }}
+          from: Study Tracker <${{ secrets.SMTP_USERNAME }}>
+          html_body: file:///tmp/issue_body.md
+          convert_markdown: true
 
       - name: Commit and push progress
         run: |
