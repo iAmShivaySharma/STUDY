@@ -1,33 +1,33 @@
 {
   "dsa": {
     "current_day": 1,
-    "consecutive_skips": 17,
+    "consecutive_skips": 18,
     "completed_days": [],
-    "last_issue_number": 25
+    "last_issue_number": 26
   },
   "system_design": {
     "current_day": 1,
-    "consecutive_skips": 17,
+    "consecutive_skips": 18,
     "completed_days": [],
-    "last_issue_number": 25
+    "last_issue_number": 26
   },
   "sql": {
     "current_day": 1,
-    "consecutive_skips": 17,
+    "consecutive_skips": 18,
     "completed_days": [],
-    "last_issue_number": 25
+    "last_issue_number": 26
   },
   "machine_coding": {
     "current_day": 1,
-    "consecutive_skips": 17,
+    "consecutive_skips": 18,
     "completed_days": [],
-    "last_issue_number": 25
+    "last_issue_number": 26
   },
   "streak": {
     "current": 0,
     "longest": 0,
     "total_days_studied": 0,
-    "total_days_skipped": 17,
+    "total_days_skipped": 18,
     "last_completed_date": null
   }
 }
